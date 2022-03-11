@@ -44,18 +44,40 @@ export function track(target, key) {
   activeEffect.deps.push(deps); // 为了做cleanUp
 }
 
-export function trigger(target, key, type) {
+export function trigger(target, key, type, value) {
   const depsMap = targetMap.get(target);
   if (!depsMap) return;
   const effects = depsMap.get(key);
   const effectToRun = new Set(); // 防止无限执行
-  console.log(target, type, effects);
   effects &&
     effects.forEach((effectFn) => {
       if (effectFn !== activeEffect) {
         effectToRun.add(effectFn);
       } // 防止循环递归调用
     });
+  if (type === TriggerType.ADD && Array.isArray(target)) {
+    // 数组添加新元素 触发依赖
+    const lengthEffects = depsMap.get("length");
+    lengthEffects &&
+      lengthEffects.forEach((effectFn) => {
+        if (effectFn !== activeEffect) {
+          effectToRun.add(effectFn);
+        } // 防止循环递归调用
+      });
+  }
+  if (Array.isArray(target) && key === "length") {
+    //修改数组长度的时候，需要触发那些被删掉的依赖
+    depsMap.forEach((effects, key) => {
+      if (key >= value) {
+        effects &&
+          effects.forEach((effect) => {
+            if (effect !== activeEffect) {
+              effectToRun.add(effect);
+            }
+          });
+      }
+    });
+  }
   if (type === TriggerType.ADD || type === TriggerType.DELETE) {
     const iterateEffects = depsMap.get(ITERATE_KEY); // 获取 forin 的依赖
     iterateEffects &&

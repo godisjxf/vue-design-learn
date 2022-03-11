@@ -1,11 +1,10 @@
 import { effect, reactive } from "../reactivity/index.js";
 
-const obj = {};
-const proto = { bar: 1 };
-const child = reactive(obj);
-const parent = reactive(proto);
-Object.setPrototypeOf(child, parent);
+let arr = reactive([1, 2, 3, 4, 5]);
 effect(() => {
-  console.log(child.bar);
+  for (const val of arr) {
+    console.log(val);
+  }
 });
-child.bar = 2;
+arr[0] = "bar";
+arr.length = 2;
