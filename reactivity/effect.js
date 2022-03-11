@@ -1,4 +1,5 @@
 let activeEffect = null;
+export let shouldTrack = true; //防止跟踪，阻断某些方法的时候，例如 array.push时阻断’length'收集依赖。
 const effectStack = []; // 解决effect包含effect时，activeEffect正确指向的问题
 
 const targetMap = new WeakMap();
@@ -16,6 +17,7 @@ function cleanup(effectFn) {
 export function effect(fn, options = {}) {
   const effectFn = function () {
     cleanup(effectFn);
+    shouldTrack = true;
     activeEffect = effectFn;
     effectStack.push(effectFn);
     fn();
@@ -30,8 +32,15 @@ export function effect(fn, options = {}) {
   return effectFn;
 }
 
+export function pauseTracking() {
+  shouldTrack = false;
+}
+export function enableTracking() {
+  shouldTrack = true;
+}
+
 export function track(target, key) {
-  if (!activeEffect) return;
+  if (!activeEffect || !shouldTrack) return;
   let depsMap = targetMap.get(target);
   if (!depsMap) {
     targetMap.set(target, (depsMap = new Map()));

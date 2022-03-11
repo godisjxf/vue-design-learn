@@ -1,10 +1,17 @@
-import { track, trigger, ITERATE_KEY, TriggerType } from "./effect.js";
+import {
+  track,
+  trigger,
+  ITERATE_KEY,
+  TriggerType,
+  pauseTracking,
+  enableTracking,
+} from "./effect.js";
 
 export function reactive(value) {
   const existionProxy = reactiveMap.get(value);
   if (existionProxy) return existionProxy;
   const proxy = createReactive(value);
-  reactiveMap.set(obj, proxy);
+  reactiveMap.set(value, proxy);
   return proxy;
 }
 export function shallowReactive(value) {
@@ -18,16 +25,26 @@ export function shallowReadOnlyReactive(value) {
 }
 
 const reactiveMap = new Map(); // 储存代理对象，免得重复创建和 代理相等 避免[a].include(a)===false
-const originMethod = Array.prototype.includes;
-const arrayInstrumentations = {
-  includes: function (...args) {
+const arrayInstrumentations = {};
+["include", "indexOf", "lastIndexOf"].forEach((method) => {
+  const originMethod = Array.prototype[method];
+  arrayInstrumentations[method] = function (...args) {
     let res = originMethod.apply(this, args);
     if (res === false) {
       res = originMethod.apply(this.raw, args);
     }
     return res;
-  },
-};
+  };
+});
+["push", "pop", "shift", "unshift", "splice"].forEach((method) => {
+  const originMethod = Array.prototype[method];
+  arrayInstrumentations[method] = function (...args) {
+    pauseTracking();
+    let res = originMethod.apply(this, args);
+    enableTracking();
+    return res;
+  };
+});
 
 function createReactive(value, isShallow, isReadOnly) {
   return new Proxy(value, {
@@ -51,6 +68,7 @@ function createReactive(value, isShallow, isReadOnly) {
       return res;
     },
     set: function (target, key, value, receiver) {
+      console.log("set");
       if (isReadOnly) {
         console.error(`属性${key}是只读的`);
         return true;

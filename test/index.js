@@ -1,10 +1,16 @@
 import { effect, reactive } from "../reactivity/index.js";
 
-let arr = reactive([1, 2, 3, 4, 5]);
+let arr = reactive([]);
 effect(() => {
-  for (const val of arr) {
-    console.log(val);
-  }
+  console.log(arr.length);
 });
-arr[0] = "bar";
-arr.length = 2;
+effect(() => {
+  arr.push(1);
+});
+effect(() => {
+  arr.push(1);
+});
+effect(() => {
+  arr.push(1);
+});
+console.log(arr);
