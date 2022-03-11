@@ -1,0 +1,16 @@
+{
+  "name": "vue-design-learn",
+  "version": "1.0.0",
+  "description": "learn book vue-design&realization",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "test": "rollup -c"
+  },
+  "keywords": [
+    "vue",
+    "mini-vue"
+  ],
+  "author": "jxf",
+  "license": "MIT"
+}
