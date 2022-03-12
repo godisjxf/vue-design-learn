@@ -17,7 +17,6 @@ function cleanup(effectFn) {
 export function effect(fn, options = {}) {
   const effectFn = function () {
     cleanup(effectFn);
-    shouldTrack = true;
     activeEffect = effectFn;
     effectStack.push(effectFn);
     fn();

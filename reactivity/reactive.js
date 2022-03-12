@@ -68,7 +68,6 @@ function createReactive(value, isShallow, isReadOnly) {
       return res;
     },
     set: function (target, key, value, receiver) {
-      console.log("set");
       if (isReadOnly) {
         console.error(`属性${key}是只读的`);
         return true;
@@ -82,11 +81,13 @@ function createReactive(value, isShallow, isReadOnly) {
         ? TriggerType.SET
         : TriggerType.ADD;
       const res = Reflect.set(target, key, value, receiver);
+
       if (receiver.raw === target) {
         // 判断作用，防止继承的时候，多次trigger。
-        if (oldValue !== value || oldValue === oldValue || value === value) {
+        if (oldValue !== value && (oldValue === oldValue || value === value)) {
           // 防止值未变化，过度更新
           // 因为NAN!== NAN  所以做如下判断
+          console.log(target.length, oldValue, key, value);
           trigger(target, key, type, value);
         }
       }

@@ -12,5 +12,11 @@
     "mini-vue"
   ],
   "author": "jxf",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "@vue/reactivity": "^3.2.31"
+  },
+  "devDependencies": {
+    "rollup-plugin-node-resolve": "^5.2.0"
+  }
 }

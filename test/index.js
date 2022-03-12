@@ -1,4 +1,5 @@
 import { effect, reactive } from "../reactivity/index.js";
+//import { effect, reactive } from "@vue/reactivity";
 
 let arr = reactive([]);
 effect(() => {
