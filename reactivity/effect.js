@@ -86,7 +86,12 @@ export function trigger(target, key, type, value) {
       }
     });
   }
-  if (type === TriggerType.ADD || type === TriggerType.DELETE) {
+  if (
+    type === TriggerType.ADD ||
+    type === TriggerType.DELETE ||
+    (type === TriggerType.SET &&
+      Object.prototype.toString().call(target) === "[object Map]")
+  ) {
     const iterateEffects = depsMap.get(ITERATE_KEY); // 获取 forin 的依赖
     iterateEffects &&
       iterateEffects.forEach((effectFn) => {
