@@ -146,7 +146,7 @@ const mutableInstrumentation = {
   set(key, value) {
     const target = this.raw;
     const had = target.has(key);
-    const rawValue = value.raw || value; // 防止数据污染
+    const rawValue = value.raw || value; // 防止数据污染   很多添加的地方 都要做防数据污染的处理。
     target.set(key, rawValue);
     if (had) {
       const oldValue = target.get(key);
@@ -167,6 +167,7 @@ const mutableInstrumentation = {
   },
   [Symbol.iterator]: iterationMethod,
   entries: iterationMethod,
+  values: valuesMethod,
 };
 function iterationMethod() {
   const target = this.raw;
@@ -176,8 +177,42 @@ function iterationMethod() {
     next() {
       const res = itr.next();
       return {
-        value: value ? [wrap(res.value[0]), wrap(res.value[1])] : value,
+        value: res.value ? [wrap(res.value[0]), wrap(res.value[1])] : res.value,
         done: res.done,
+      };
+    },
+    [Symbol.iterator]() {
+      return this;
+    },
+  };
+}
+function valuesMethod() {
+  const target = this.raw;
+  const itr = target.values();
+  track(target, ITERATE_KEY);
+  return {
+    next() {
+      const { value, done } = itr.next();
+      return {
+        value: value ? wrap(value) : value,
+        done,
+      };
+    },
+    [Symbol.iterator]() {
+      return this;
+    },
+  };
+}
+function keysMethod() {
+  const target = this.raw;
+  const itr = target.values();
+  track(target, MAP_KEY_ITERATE_KEY);
+  return {
+    next() {
+      const { value, done } = itr.next();
+      return {
+        value: value ? wrap(value) : value,
+        done,
       };
     },
     [Symbol.iterator]() {
@@ -199,49 +234,6 @@ function creatCollectionHandler(isShallow = false, isReadOnly = false) {
         return Reflect.get(target, key, target); // 获取size 的时候 会调用 [[SetData]],所以要调用原对象
       }
       return mutableInstrumentation[key];
-    },
-    // set: function (target, key, value, receiver) {
-    //   if (isReadOnly) {
-    //     console.error(`属性${key}是只读的`);
-    //     return true;
-    //   }
-    //   const oldValue = target[key];
-    //   const type = Array.isArray(target)
-    //     ? Number(key) < target.length
-    //       ? TriggerType.SET
-    //       : TriggerType.ADD
-    //     : Object.prototype.hasOwnProperty.call(target, key)
-    //     ? TriggerType.SET
-    //     : TriggerType.ADD;
-    //   const res = Reflect.set(target, key, value, receiver);
-
-    //   if (receiver.raw === target) {
-    //     // 判断作用，防止继承的时候，多次trigger。
-    //     if (oldValue !== value && (oldValue === oldValue || value === value)) {
-    //       // 防止值未变化，过度更新
-    //       // 因为NAN!== NAN  所以做如下判断
-    //       console.log(target.length, oldValue, key, value);
-    //       trigger(target, key, type, value);
-    //     }
-    //   }
-    //   return res;
-    // },
-    ownKeys: function (target) {
-      // 拦截for in
-      track(target, Array.isArray(target) ? "length" : ITERATE_KEY);
-      return Reflect.ownKeys(target);
-    },
-    deleteProperty(target, key) {
-      if (isReadOnly) {
-        console.error(`属性${key}是只读的`);
-        return true;
-      }
-      const hadKey = Object.prototype.hasOwnProperty.call(target, key);
-      const res = Reflect.deleteProperty(target, key);
-      if (hadKey & res) {
-        trigger(target, key, TriggerType.DELETE);
-      }
-      return res;
     },
   };
 }

@@ -4,6 +4,7 @@ const effectStack = []; // 解决effect包含effect时，activeEffect正确指�
 
 const targetMap = new WeakMap();
 export const ITERATE_KEY = Symbol("iterate");
+export const MAP_KEY_ITERATE_KEY = Symbol("mapIterate");
 export const TriggerType = { SET: "SET", ADD: "ADD", DELETE: "DELETE" };
 
 function cleanup(effectFn) {
@@ -95,6 +96,20 @@ export function trigger(target, key, type, value) {
     const iterateEffects = depsMap.get(ITERATE_KEY); // 获取 forin 的依赖
     iterateEffects &&
       iterateEffects.forEach((effectFn) => {
+        if (effectFn !== activeEffect) {
+          effectToRun.add(effectFn);
+        } // 防止循环递归调用
+      });
+  }
+  if (
+    (type === TriggerType.ADD || type === TriggerType.DELETE) &&
+    Object.prototype.toString().call(target) === "[object Map]"
+  ) {
+    // 处理遍历keys收集的依赖
+    // 数组添加新元素 触发依赖
+    const mapEffects = depsMap.get(MAP_KEY_ITERATE_KEY);
+    mapEffects &&
+      mapEffects.forEach((effectFn) => {
         if (effectFn !== activeEffect) {
           effectToRun.add(effectFn);
         } // 防止循环递归调用
