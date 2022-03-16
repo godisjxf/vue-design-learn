@@ -1,5 +1,13 @@
+const Text = new Symbol("text");
 function createRenderer(options = {}) {
-  const { createElement, setElementText, insert, patchProps } = options;
+  const {
+    createElement,
+    setElementText,
+    insert,
+    patchProps,
+    creatText,
+    setText,
+  } = options;
   function render(vNode, container) {
     if (vNode) {
       patch(container._vNode, vNode, container);
@@ -23,7 +31,16 @@ function createRenderer(options = {}) {
         patchElement(n1, n2);
       }
     } else if (typeof type === "object") {
-    } else if (typeof type === "xxx") {
+    } else if (typeof type === Text) {
+      if (!n1) {
+        const el = (n2.el = creatText(n2.children));
+        insert(el, container);
+      } else {
+        const el = (n2.el = n1.el);
+        if (n2.children !== n1.children) {
+          setText(el, n2.children);
+        }
+      }
     }
   }
   function mountElement(vNode, container) {
@@ -45,6 +62,57 @@ function createRenderer(options = {}) {
   return {
     render,
   };
+  function unmount(vNode) {
+    // 卸载封装成函数好处1、有机会调用绑定在DOM上的钩子函数 2、如果发现是组件，还可以调用生命周期函数
+    const parent = vNode.el.parent;
+    if (parent) {
+      parent.remove(vNode.el);
+    }
+  }
+  function patchElement(n1, n2) {
+    const el = (n2.el = n1.el);
+    //对比节点，对比props
+    const oldProps = n1.props;
+    const newProps = n2.props;
+    for (const key in newProps) {
+      if (newProps[key] !== oldProps[key]) {
+        patchProps(el, key, oldProps[k], newProps[key]);
+      }
+    }
+    for (const key in oldProps) {
+      if (!key in newProps) {
+        patchProps(el, key, oldProps[key], null);
+      }
+    }
+    patchChildren(n1, n2, el);
+  }
+  function patchChildren(n1, n2, container) {
+    if (typeof n2.children.type === "string") {
+      if (Array.isArray(n1.children)) {
+        n1.child.forEach((c) => {
+          unmount(c);
+        });
+      } else {
+        setElementText(container, n2.children);
+      }
+    } else if (Array.isArray(n2.children)) {
+      if (Array.isArray(n1.children)) {
+      } else {
+        setElementText(container, "");
+        n2.children.forEach((c) => {
+          patch(null, c, container);
+        });
+      }
+    } else {
+      if (Array.isArray(n1.children)) {
+        n1.child.forEach((c) => {
+          unmount(c);
+        });
+      } else if (typeof n1.children === "string") {
+        setElementText(container, "");
+      }
+    }
+  }
 }
 
 const renderer = createRenderer({
@@ -65,9 +133,17 @@ const renderer = createRenderer({
       if (nextValue) {
         if (!invoker) {
           invoker = el._vei[key] = (e) => {
-            invoker.value(e);
+            if (e.timeStamp < invoker.attached) return; // 阻止掉绑定之前 所触发的时间，防止出现更新 时机问题
+            if (Array.isArray(invoker.value)) {
+              invoker.value.forEach((fn) => {
+                fn(e);
+              });
+            } else {
+              invoker.value(e);
+            }
           };
           invoker.value = nextValue;
+          invoker.attached = performance.now();
           el.addEventListener(name, invoker);
         } else {
           invoker.value = nextValue;
@@ -94,16 +170,15 @@ const renderer = createRenderer({
       el.setAttribute(key, nextValue);
     }
   },
+  creatText(text) {
+    return document.createTextNode(text);
+  },
+  setText(el, text) {
+    el.nodeValue = text;
+  },
 });
 function shouldSetAsProps(el, key, nextValue) {
   // 只读特征，不能用el[key]处理，需要setAttribute。需要做特殊处理，此处只列举出一项。
   if (key === "form" && el.tagName === "input") return false;
   return key in el;
-}
-function unmount(vNode) {
-  // 卸载封装成函数好处1、有机会调用绑定在DOM上的钩子函数 2、如果发现是组件，还可以调用生命周期函数
-  const parent = vNode.el.parent;
-  if (parent) {
-    parent.remove(vNode.el);
-  }
 }
