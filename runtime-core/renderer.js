@@ -1,4 +1,5 @@
 const Text = new Symbol("text");
+const Fragment = new Symbol("fragment");
 function createRenderer(options = {}) {
   const {
     createElement,
@@ -18,7 +19,7 @@ function createRenderer(options = {}) {
     }
     container._vNode = vNode;
   }
-  function patch(n1, n2, container) {
+  function patch(n1, n2, container, anchor) {
     if (n1 && n1.tag !== n2.tag) {
       unmount(n1);
       n1 = null;
@@ -30,7 +31,6 @@ function createRenderer(options = {}) {
       } else {
         patchElement(n1, n2);
       }
-    } else if (typeof type === "object") {
     } else if (typeof type === Text) {
       if (!n1) {
         const el = (n2.el = creatText(n2.children));
@@ -41,9 +41,18 @@ function createRenderer(options = {}) {
           setText(el, n2.children);
         }
       }
+    } else if (type === Fragment) {
+      if (!n1) {
+        n2.children.forEach((c) => {
+          patch(null, c, container);
+        });
+      } else {
+        patchChildren(n1, n2, container);
+      }
+    } else if (typeof type === "object") {
     }
   }
-  function mountElement(vNode, container) {
+  function mountElement(vNode, container, anchor) {
     const el = (vNode.el = createElement(vNode.tag));
     if (typeof vNode.children === "string") {
       setElementText(el, vNode.children);
@@ -57,12 +66,18 @@ function createRenderer(options = {}) {
         patchProps(el, key, null, vNode.props[key]);
       }
     }
-    insert(el, container);
+    insert(el, container, anchor);
   }
   return {
     render,
   };
   function unmount(vNode) {
+    if (vNode.type === Fragment) {
+      vNode.children.forEach((e) => {
+        unmount(c);
+      });
+      return;
+    }
     // 卸载封装成函数好处1、有机会调用绑定在DOM上的钩子函数 2、如果发现是组件，还可以调用生命周期函数
     const parent = vNode.el.parent;
     if (parent) {
@@ -97,6 +112,7 @@ function createRenderer(options = {}) {
       }
     } else if (Array.isArray(n2.children)) {
       if (Array.isArray(n1.children)) {
+        diffSimple(n1, n2, container);
       } else {
         setElementText(container, "");
         n2.children.forEach((c) => {
@@ -158,6 +174,11 @@ const renderer = createRenderer({
       el.className = nextValue;
       return;
     }
+    if (key === "style") {
+      //使用CSSStyleDeclaration的cssText 进行改变style
+      el.style.cssText = nextValue;
+      return;
+    }
     if (shouldSetAsProps(el, key, nextValue)) {
       const type = typeof el[key];
       if (type === "boolean" && nextValue === "") {
@@ -182,3 +203,44 @@ function shouldSetAsProps(el, key, nextValue) {
   if (key === "form" && el.tagName === "input") return false;
   return key in el;
 }
+
+function diffSimple(n1, n2, container) {
+  const oldChildren = n1.children;
+  const newChildren = n2.children;
+  // const minLength = Math.min(oldChildren.length,newChildren.length)
+  let lastIndex = 0;
+  for (let i = 0; i < newChildren.length; i++) {
+    let find = false;
+    for (let j = 0; j < newChildren.length; j++) {
+      if (newChildren[i].key === oldChildren[j].key) {
+        find = true;
+        patch(oldChildren[j], newChildren[i], container);
+        if (j < lastIndex) {
+          const node = newChildren[i - 1];
+          if (node) {
+            //如果不存在 就是第一个节点  不需要移动
+            const anchor = node.el.nextSibling;
+            insert(newChildren[i].el, container, anchor);
+          }
+        } else {
+          lastIndex = j;
+        }
+      }
+    }
+    if (!find) {
+      const anchor = children[i - 1]
+        ? children[i - 1].el.nextSibling
+        : container.firstChild;
+      patch(null, newChildren[i], container, anchor);
+    }
+  }
+  for (let index = 0; index < oldChildren.length; index++) {
+    let key = oldChildren[index].key;
+    let has = newChildren.find((x) => x.key === key);
+    if (!has) {
+      unmount(oldChildren[index]);
+    }
+  }
+}
+
+function doubleEndedDiff(n1, n2, container) {}
