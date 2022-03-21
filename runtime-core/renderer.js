@@ -19,7 +19,7 @@ function createRenderer(options = {}) {
     }
     container._vNode = vNode;
   }
-  function patch(n1, n2, container, anchor) {
+  function patch(n1, n2, container) {
     if (n1 && n1.tag !== n2.tag) {
       unmount(n1);
       n1 = null;
@@ -73,7 +73,7 @@ function createRenderer(options = {}) {
   };
   function unmount(vNode) {
     if (vNode.type === Fragment) {
-      vNode.children.forEach((e) => {
+      vNode.children.forEach(() => {
         unmount(c);
       });
       return;
@@ -129,6 +129,94 @@ function createRenderer(options = {}) {
       }
     }
   }
+  function diff(n1, n2, container) {
+    //快速diff 算法。
+    const newChildren = n2.children;
+    const oldChildren = n1.children;
+    let j = 0;
+    let oldEnd = n1.children.length - 1;
+    let newEnd = n2.children.length - 1;
+    while (newChildren[j].key === oldChildren[j].key) {
+      patch(oldChildren[j], newChildren[j], container);
+      j++;
+    }
+    while (newChildren[newEnd].key === oldChildren[oldEnd].key) {
+      patch(oldChildren[oldEnd], newChildren[newEnd], container);
+      oldEnd--;
+      newEnd--;
+    }
+    if (j <= oldEnd && j > newEnd) {
+      // for (let index = j; index <= oldEnd; index++) {
+      //   unmount(oldEnd[index]);
+      // }
+      while (j <= oldEnd) {
+        unmount(oldEnd[j++]);
+      }
+    } else if (j > oldEnd && j <= newEnd) {
+      /*  for (let index = j; index <= newEnd; index++) {
+        patch(null, newChildren[j], oldChildren[j].el);
+      } */
+      const anchorIndex = j + 1;
+      const anchor =
+        anchorIndex < length ? newChildren[anchorIndex].el.nextSibling : null;
+      while (j <= newEnd) {
+        patch(null, newChildren[j++], container, anchor);
+      }
+    } else {
+      const source = new Array(newChildren - j + 1);
+      source.fill(-1);
+      const keyIndex = {};
+      const oldStart = j;
+      const newStart = j;
+      let pos = 0;
+      let moving = false;
+      let count = newEnd - newStart + 1;
+      let patched = 0;
+      for (let index = j; index <= newEnd; index++) {
+        keyIndex[newChildren[index].key] = index;
+      }
+      for (let index = j; index <= oldEnd; index++) {
+        const node = oldChildren[index];
+        const k = keyIndex[node.key];
+        if (patch <= count) {
+          if (typeof k !== undefined) {
+            patch(oldChildren[index], newChildren[k], container);
+            source[k - newStart] = index;
+            if (k > pos) {
+              pos = k;
+            } else {
+              moving = true;
+            }
+          } else {
+            unmount(node);
+          }
+        } else {
+          unmount(node);
+        }
+      }
+      if (moving) {
+        const seq = getSequence(source);
+        let s = seq.length - 1;
+        let i = count - 1;
+        while (i >= 0) {
+          const pos = i + newStart;
+          const newVNode = newChildren[pos];
+          const nextPos = pos + 1;
+          const anchor = nextPos < length ? newChildren[nextPos].el : null;
+          if (source[i] === -1) {
+            patch(null, newVNode, container, anchor);
+            i--;
+          } else if (seq[s] === i) {
+            s--;
+            i--;
+          } else {
+            insert(newVNode.el, container, anchor);
+            i--;
+          }
+        }
+      }
+    }
+  }
 }
 
 const renderer = createRenderer({
@@ -141,7 +229,7 @@ const renderer = createRenderer({
   insert(el, parent, anchor = null) {
     parent.insertBefore(el, anchor);
   },
-  patchProps(el, key, preValue, nextValue) {
+  patchProps(el, key, nextValue) {
     if (/^on/.test(key)) {
       const invokers = el._vei || (el._vei = {});
       let invoker = invokers[key];
@@ -243,4 +331,103 @@ function diffSimple(n1, n2, container) {
   }
 }
 
-function doubleEndedDiff(n1, n2, container) {}
+function doubleEndedDiff(n1, n2, container) {
+  // 双端diff ,对比双端，然后往中间回缩。
+  const oldChildren = n1.children;
+  const newChildren = n2.children;
+  let oldStartIdx = 0;
+  let newStartIdx = 0;
+  let oldEndIdx = oldChildren.length - 1;
+  let newEndIdx = newChildren.length - 1;
+
+  while (oldStartIdx <= oldEndIdx && newStartIdx <= newEndIdx) {
+    if (!oldChildren[oldStartIdx]) {
+      oldStartIdx++;
+    } else if (!oldChildren[oldEndIdx]) {
+      oldEndIdx--;
+    } else if (oldChildren[oldStartIdx].key === newChildren[newStartIdx].key) {
+      patch(oldChildren[oldStartIdx], newChildren[newStartIdx], container);
+      oldStartIdx++;
+      newStartIdx++;
+    } else if (oldChildren[oldEndIdx].key === newChildren[newEndIdx].key) {
+      patch(oldChildren[oldEndIdx], newChildren[newEndIdx], container);
+      oldEndIdx--;
+      newEndIdx--;
+    } else if (oldChildren[oldStartIdx].key === newChildren[newEndIdx].key) {
+      patch(oldChildren[oldStartIdx], newChildren[newEndIdx], container);
+      const p = newEndIdx + 1;
+      const anchor = oldChildren.el.nextSibling;
+      insert(oldChildren[oldStartIdx].el, container, anchor);
+      oldStartIdx++;
+      newEndIdx--;
+    } else if (oldChildren[oldEndIdx].key === newChildren[newStartIdx].key) {
+      patch(oldChildren[oldEndIdx], newChildren[newStartIdx], container);
+      insert(oldChildren[oldEndIdx].el, container, oldChildren[oldStartIdx]);
+      newStartIdx++;
+      oldEndIdx--;
+    } else {
+      for (let index = oldStartIdx + 1; index < oldEndIdx; index++) {
+        if (oldChildren[index].key === newChildren[newStartIdx].key) {
+          patch(oldChildren[index], newChildren[newStartIdx], container);
+          const p = newStartIdx - 1;
+          const anchor = oldChildren[oldStartIdx].el;
+          insert(oldChildren[oldStartIdx].el, container, anchor);
+          oldChildren[index] = undefined;
+          newStartIdx++;
+          break;
+        }
+      }
+    }
+  }
+  if (oldStartIdx > oldEndIdx && newStartIdx <= newEndIdx) {
+    for (let index = newStartIdx; index <= newEndIdx; index++) {
+      patch(null, newChildren[index], container, oldChildren[oldStartIdx]);
+    }
+  }
+  if (oldStartIdx <= oldEndIdx && newStartIdx > newEndIdx) {
+    for (let index = oldStartIdx; index <= oldEndIdx; index++) {
+      unmount(oldChildren[index]);
+    }
+  }
+}
+
+function getSequence(arr) {
+  const p = arr.slice();
+  const result = [0];
+  let i, j, u, v, c;
+  const len = arr.length;
+  for (i = 0; i < len; i++) {
+    const arrI = arr[i];
+    if (arrI !== 0) {
+      j = result[result.length - 1];
+      if (arr[j] < arrI) {
+        p[i] = j;
+        result.push(i);
+        continue;
+      }
+      u = 0;
+      v = result.length - 1;
+      while (u < v) {
+        c = (u + v) >> 1;
+        if (arr[result[c]] < arrI) {
+          u = c + 1;
+        } else {
+          v = c;
+        }
+      }
+      if (arrI < arr[result[u]]) {
+        if (u > 0) {
+          p[i] = result[u - 1];
+        }
+        result[u] = i;
+      }
+    }
+  }
+  u = result.length;
+  v = result[u - 1];
+  while (u-- > 0) {
+    result[u] = v;
+    v = p[v];
+  }
+  return result;
+}
