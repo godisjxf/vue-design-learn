@@ -357,7 +357,7 @@ const renderer = createRenderer({
   insert(el, parent, anchor = null) {
     parent.insertBefore(el, anchor);
   },
-  patchProps(el, key, nextValue) {
+  patchProps(el, key, preValue, nextValue) {
     if (/^on/.test(key)) {
       const invokers = el._vei || (el._vei = {});
       let invoker = invokers[key];

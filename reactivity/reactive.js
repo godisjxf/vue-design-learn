@@ -146,7 +146,7 @@ const mutableInstrumentation = {
   set(key, value) {
     const target = this.raw;
     const had = target.has(key);
-    const rawValue = value.raw || value; // 防止数据污染   很多添加的地方 都要做防数据污染的处理。
+    const rawValue = value.raw || value; // 防止数据污染   很多添加操作的地方 都要做防数据污染的处理。
     target.set(key, rawValue);
     if (had) {
       const oldValue = target.get(key);
