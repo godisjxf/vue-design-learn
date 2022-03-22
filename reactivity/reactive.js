@@ -168,6 +168,7 @@ const mutableInstrumentation = {
   [Symbol.iterator]: iterationMethod,
   entries: iterationMethod,
   values: valuesMethod,
+  keys: keysMethod,
 };
 function iterationMethod() {
   const target = this.raw;
@@ -205,7 +206,7 @@ function valuesMethod() {
 }
 function keysMethod() {
   const target = this.raw;
-  const itr = target.values();
+  const itr = target.keys();
   track(target, MAP_KEY_ITERATE_KEY);
   return {
     next() {
